@@ -17,6 +17,7 @@ export async function searchMemories(query: string, limit: number = 5): Promise<
       body: JSON.stringify({
         query,
         user_id: config.discord.userId,
+        agent_id: 'miu-bot',
         limit,
       }),
     });
@@ -44,7 +45,7 @@ export async function searchMemories(query: string, limit: number = 5): Promise<
 export async function getRecentMemories(limit: number = 10): Promise<string> {
   try {
     const response = await fetch(
-      `${config.mem0.baseUrl}/memories/?user_id=${config.discord.userId}&limit=${limit}`,
+      `${config.mem0.baseUrl}/memories/?user_id=${config.discord.userId}&agent_id=miu-bot&limit=${limit}`,
       {
         method: 'GET',
         headers: {
@@ -77,6 +78,7 @@ export async function saveMemory(content: string): Promise<void> {
       body: JSON.stringify({
         messages: [{ role: 'user', content }],
         user_id: config.discord.userId,
+        agent_id: 'miu-bot',
       }),
     });
 

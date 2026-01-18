@@ -45,6 +45,11 @@ export interface RecentMessage {
   created_at: string;
 }
 
+// JST時刻をISO形式で取得
+function getJSTISOString(): string {
+  return new Date().toLocaleString('sv-SE', { timeZone: 'Asia/Tokyo' }).replace(' ', 'T');
+}
+
 class Storage {
   private db: Database.Database;
 
@@ -103,9 +108,9 @@ class Storage {
   createTask(taskName: string, durationMinutes: number): Task {
     const stmt = this.db.prepare(`
       INSERT INTO tasks (task_name, duration_minutes, started_at, status)
-      VALUES (?, ?, datetime('now', 'localtime'), 'working')
+      VALUES (?, ?, ?, 'working')
     `);
-    const result = stmt.run(taskName, durationMinutes);
+    const result = stmt.run(taskName, durationMinutes, getJSTISOString());
     return this.getTask(result.lastInsertRowid as number)!;
   }
 
@@ -123,44 +128,49 @@ class Storage {
 
   completeTask(id: number, comment?: string): void {
     const stmt = this.db.prepare(`
-      UPDATE tasks SET status = 'done', completed_at = datetime('now', 'localtime'), comment = ?
+      UPDATE tasks SET status = 'done', completed_at = ?, comment = ?
       WHERE id = ?
     `);
-    stmt.run(comment ?? null, id);
+    stmt.run(getJSTISOString(), comment ?? null, id);
   }
 
   skipTask(id: number): void {
     const stmt = this.db.prepare(`
-      UPDATE tasks SET status = 'skipped', completed_at = datetime('now', 'localtime')
+      UPDATE tasks SET status = 'skipped', completed_at = ?
       WHERE id = ?
     `);
-    stmt.run(id);
+    stmt.run(getJSTISOString(), id);
   }
 
   getTodayTasks(): Task[] {
+    const today = getJSTISOString().split('T')[0]; // YYYY-MM-DD
     const stmt = this.db.prepare(`
       SELECT * FROM tasks
-      WHERE date(started_at) = date('now', 'localtime')
+      WHERE date(started_at) = ?
       ORDER BY started_at ASC
     `);
-    return stmt.all() as Task[];
+    return stmt.all(today) as Task[];
   }
 
   getTasksInDays(days: number): Task[] {
+    const pastDate = new Date();
+    pastDate.setDate(pastDate.getDate() - days);
+    const startDate = pastDate.toLocaleString('sv-SE', { timeZone: 'Asia/Tokyo' }).replace(' ', 'T');
     const stmt = this.db.prepare(`
       SELECT * FROM tasks
-      WHERE started_at >= datetime('now', 'localtime', ?)
+      WHERE started_at >= ?
       ORDER BY started_at DESC
     `);
-    return stmt.all(`-${days} days`) as Task[];
+    return stmt.all(startDate) as Task[];
   }
 
   getTodayCompletedCount(): number {
+    const today = getJSTISOString().split('T')[0]; // YYYY-MM-DD
     const stmt = this.db.prepare(`
       SELECT COUNT(*) as count FROM tasks
-      WHERE date(started_at) = date('now', 'localtime') AND status = 'done'
+      WHERE date(started_at) = ? AND status = 'done'
     `);
-    const result = stmt.get() as { count: number };
+    const result = stmt.get(today) as { count: number };
     return result.count;
   }
 
@@ -268,9 +278,12 @@ class Storage {
 
   // Utility
   getElapsedMinutes(task: Task): number {
+    // started_atはJST時刻のISO形式（例: 2024-01-01T12:00:00）
+    // そのままDateにパースするとローカル時刻として解釈される
     const started = new Date(task.started_at);
-    const now = new Date();
-    return Math.floor((now.getTime() - started.getTime()) / (1000 * 60));
+    // 現在のJST時刻を取得
+    const nowJST = new Date(getJSTISOString());
+    return Math.floor((nowJST.getTime() - started.getTime()) / (1000 * 60));
   }
 }
 
