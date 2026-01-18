@@ -1,6 +1,11 @@
-import { isHoliday } from './holidays.js';
+import { isHoliday as checkHoliday } from './holidays.js';
 
 export type TimeSlot = 'morning' | 'work' | 'evening' | 'night' | 'sleep';
+
+// re-export for convenience
+export function isHoliday(date: Date = new Date()): boolean {
+  return checkHoliday(date);
+}
 
 interface NotificationWindow {
   allowed: boolean;
@@ -17,7 +22,7 @@ export function isWeekend(date: Date = getJSTDate()): boolean {
 }
 
 export function isWorkday(date: Date = getJSTDate()): boolean {
-  return !isWeekend(date) && !isHoliday(date);
+  return !isWeekend(date) && !checkHoliday(date);
 }
 
 export function getTimeSlot(date: Date = getJSTDate()): TimeSlot {
