@@ -1,6 +1,7 @@
 import 'dotenv/config';
 import {
   Client,
+  Events,
   GatewayIntentBits,
   Partials,
   REST,
@@ -220,7 +221,7 @@ client.on('messageCreate', async (message: Message) => {
 });
 
 // Bot起動
-client.once('ready', async () => {
+client.once(Events.ClientReady, async () => {
   console.log(`Logged in as ${client.user?.tag}`);
 
   // スラッシュコマンド登録
