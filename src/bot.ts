@@ -74,10 +74,23 @@ async function registerSlashCommands(): Promise<void> {
   }
 }
 
+// JST時刻を計算
+function getJSTEndTime(minutes: number): string {
+  const now = new Date();
+  const jstNow = new Date(now.toLocaleString('en-US', { timeZone: 'Asia/Tokyo' }));
+  jstNow.setMinutes(jstNow.getMinutes() + minutes);
+  return `${String(jstNow.getHours()).padStart(2, '0')}:${String(jstNow.getMinutes()).padStart(2, '0')}`;
+}
+
 // インテントの日本語表示
 function getIntentLabel(intent: IntentType, params: IntentParams): string {
+  if (intent === 'next') {
+    const minutes = params.minutes ?? 30;
+    const endTime = getJSTEndTime(minutes);
+    return `タスク開始: ${params.taskName} (${minutes}分) → 終了予定 ${endTime}`;
+  }
+
   const labels: Record<string, string> = {
-    next: `タスク開始: ${params.taskName} (${params.minutes ?? 30}分)`,
     done: params.comment ? `タスク完了: ${params.comment}` : 'タスク完了',
     skip: 'タスクスキップ',
     status: '状況確認',
