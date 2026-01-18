@@ -14,7 +14,7 @@ import { storage } from './storage.js';
 import { generateResponse } from './services/grok.js';
 import { searchMemories, saveMemory } from './services/memory.js';
 import { initHolidays } from './services/holidays.js';
-import { parseIntent, type IntentType } from './services/intent.js';
+import { parseIntent, type IntentType, type ParsedIntent, type IntentParams } from './services/intent.js';
 import {
   setDMCallback,
   startScheduledJobs,
@@ -75,7 +75,7 @@ async function registerSlashCommands(): Promise<void> {
 }
 
 // インテントの日本語表示
-function getIntentLabel(intent: IntentType, params: Record<string, unknown>): string {
+function getIntentLabel(intent: IntentType, params: IntentParams): string {
   const labels: Record<string, string> = {
     next: `タスク開始: ${params.taskName} (${params.minutes ?? 30}分)`,
     done: params.comment ? `タスク完了: ${params.comment}` : 'タスク完了',
@@ -91,81 +91,90 @@ function getIntentLabel(intent: IntentType, params: Record<string, unknown>): st
   return labels[intent] ?? intent;
 }
 
-// インテントに基づいてコマンドを実行
-async function executeByIntent(message: Message): Promise<{ response: string; intent: IntentType; params: Record<string, unknown> } | null> {
-  const parsed = await parseIntent(message.content);
-  console.log('Parsed intent:', parsed);
-
-  const { intent, params } = parsed;
-
-  let response: string | null = null;
-
+// 単一インテントを実行
+async function executeSingleIntent(intent: IntentType, params: IntentParams): Promise<string | null> {
   switch (intent) {
     case 'next': {
-      if (!params.taskName) {
-        return null;
-      }
+      if (!params.taskName) return null;
       const result = await executeNext(params.taskName, params.minutes ?? 30);
-      response = result.response;
-      break;
+      return result.response;
     }
     case 'done': {
       const result = await executeDone(params.comment);
-      response = result.response;
-      break;
+      return result.response;
     }
     case 'skip': {
       const result = await executeSkip();
-      response = result.response;
-      break;
+      return result.response;
     }
     case 'status': {
       const result = await executeStatus();
-      response = result.response;
-      break;
+      return result.response;
     }
     case 'break': {
       const result = await executeBreak(params.minutes ?? 10);
-      response = result.response;
-      break;
+      return result.response;
     }
     case 'done_today': {
       const result = await executeDoneToday();
-      response = result.response;
-      break;
+      return result.response;
     }
     case 'history': {
       const result = await executeHistory(params.days ?? 0);
-      response = result.response;
-      break;
+      return result.response;
     }
     case 'remind_add': {
-      if (!params.remindText) {
-        return null;
-      }
+      if (!params.remindText) return null;
       const result = await executeRemindAdd(params.remindText);
-      response = result.response;
-      break;
+      return result.response;
     }
     case 'remind_list': {
       const result = await executeRemindList();
-      response = result.response;
-      break;
+      return result.response;
     }
     case 'remind_delete': {
-      if (!params.remindId) {
-        return null;
-      }
+      if (!params.remindId) return null;
       const result = await executeRemindDelete(params.remindId);
-      response = result.response;
-      break;
+      return result.response;
     }
     case 'chat':
     default:
       return null;
   }
+}
 
-  return { response, intent, params };
+interface ExecutedIntent {
+  intent: IntentType;
+  params: IntentParams;
+  response: string;
+}
+
+// インテントに基づいてコマンドを実行（複数対応）
+async function executeByIntent(message: Message): Promise<ExecutedIntent[] | null> {
+  const parsedIntents = await parseIntent(message.content);
+  console.log('Parsed intents:', parsedIntents);
+
+  // chatのみの場合はnullを返す
+  if (parsedIntents.length === 1 && parsedIntents[0].intent === 'chat') {
+    return null;
+  }
+
+  const results: ExecutedIntent[] = [];
+
+  for (const parsed of parsedIntents) {
+    if (parsed.intent === 'chat') continue;
+
+    const response = await executeSingleIntent(parsed.intent, parsed.params);
+    if (response) {
+      results.push({
+        intent: parsed.intent,
+        params: parsed.params,
+        response,
+      });
+    }
+  }
+
+  return results.length > 0 ? results : null;
 }
 
 // 通常の会話処理
@@ -202,13 +211,18 @@ client.on('messageCreate', async (message: Message) => {
 
   try {
     // まずインテント解析を試みる
-    const commandResult = await executeByIntent(message);
+    const commandResults = await executeByIntent(message);
 
-    if (commandResult) {
+    if (commandResults && commandResults.length > 0) {
       // コマンドとして処理された - infoラベル付きで返信
-      const label = getIntentLabel(commandResult.intent, commandResult.params);
-      const infoLine = `\`[${label}]\``;
-      await message.reply(`${infoLine}\n\n${commandResult.response}`);
+      const parts: string[] = [];
+
+      for (const result of commandResults) {
+        const label = getIntentLabel(result.intent, result.params);
+        parts.push(`\`[${label}]\`\n${result.response}`);
+      }
+
+      await message.reply(parts.join('\n\n'));
     } else {
       // 通常の会話として処理
       const chatResponse = await handleChat(message);

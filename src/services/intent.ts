@@ -13,21 +13,28 @@ export type IntentType =
   | 'remind_delete' // リマインド削除
   | 'chat';     // 通常の会話
 
+export interface IntentParams {
+  taskName?: string;
+  minutes?: number;
+  comment?: string;
+  days?: number;
+  remindText?: string;
+  remindId?: number;
+}
+
 export interface ParsedIntent {
   intent: IntentType;
-  params: {
-    taskName?: string;
-    minutes?: number;
-    comment?: string;
-    days?: number;
-    remindText?: string;
-    remindId?: number;
-  };
+  params: IntentParams;
   confidence: number;
 }
 
+export interface ParsedIntents {
+  intents: ParsedIntent[];
+}
+
 const INTENT_PARSE_PROMPT = `あなたはユーザーの発言から意図を解析するアシスタントです。
-以下のコマンドのいずれかに該当するか判定し、JSONで返してください。
+以下のコマンドに該当するか判定し、JSONで返してください。
+**1つのメッセージに複数の意図が含まれる場合は、すべて配列で返してください。**
 
 【コマンド一覧】
 - next: タスクを開始する（例: 「レポート作成30分でやる」「次は会議資料を1時間で」）
@@ -44,23 +51,29 @@ const INTENT_PARSE_PROMPT = `あなたはユーザーの発言から意図を解
 
 【出力形式】JSONのみを出力してください
 {
-  "intent": "コマンド名",
-  "params": {
-    "taskName": "タスク名（nextの場合）",
-    "minutes": 数値（next/breakの場合、分単位）,
-    "comment": "感想（doneの場合）",
-    "days": 数値（historyの場合、日数）,
-    "remindText": "リマインド内容（remind_addの場合）",
-    "remindId": 数値（remind_deleteの場合）
-  },
-  "confidence": 0.0〜1.0（確信度）
+  "intents": [
+    {
+      "intent": "コマンド名",
+      "params": {
+        "taskName": "タスク名（nextの場合）",
+        "minutes": 数値（next/breakの場合、分単位）,
+        "comment": "感想（doneの場合）",
+        "days": 数値（historyの場合、日数）,
+        "remindText": "リマインド内容（remind_addの場合）",
+        "remindId": 数値（remind_deleteの場合）
+      },
+      "confidence": 0.0〜1.0（確信度）
+    }
+  ]
 }
 
 【注意】
+- 「運動終わったよ！次は30分でお買い物するよ」→ done + next の2つを返す
 - 時間の指定がない場合、nextはminutes: 30、breakはminutes: 10をデフォルトとする
 - 「1時間」は60分、「30分」は30に変換
-- confidenceが0.5未満の場合はchatとして扱う
+- confidenceが0.5未満のintentは含めない
 - 曖昧な場合は無理に判定せずchatとする
+- 複数の意図がある場合は実行順序通りに配列に入れる（done→nextの順など）
 
 ユーザーの発言: {user_message}`;
 
@@ -68,7 +81,7 @@ interface GrokResponse {
   choices: Array<{ message: { content: string } }>;
 }
 
-export async function parseIntent(userMessage: string): Promise<ParsedIntent> {
+export async function parseIntent(userMessage: string): Promise<ParsedIntent[]> {
   const prompt = INTENT_PARSE_PROMPT.replace('{user_message}', userMessage);
 
   try {
@@ -81,14 +94,14 @@ export async function parseIntent(userMessage: string): Promise<ParsedIntent> {
       body: JSON.stringify({
         model: config.grok.model,
         messages: [{ role: 'user', content: prompt }],
-        max_tokens: 200,
-        temperature: 0.2, // 低めで確実に
+        max_tokens: 300,
+        temperature: 0.2,
       }),
     });
 
     if (!response.ok) {
       console.error(`Intent parse API error: ${response.status}`);
-      return { intent: 'chat', params: {}, confidence: 0 };
+      return [{ intent: 'chat', params: {}, confidence: 0 }];
     }
 
     const data = (await response.json()) as GrokResponse;
@@ -97,18 +110,18 @@ export async function parseIntent(userMessage: string): Promise<ParsedIntent> {
     // JSONをパース
     const jsonMatch = content.match(/\{[\s\S]*\}/);
     if (jsonMatch) {
-      const parsed = JSON.parse(jsonMatch[0]) as ParsedIntent;
+      const parsed = JSON.parse(jsonMatch[0]) as ParsedIntents;
 
-      // 確信度が低い場合はchatに
-      if (parsed.confidence < 0.5) {
-        return { intent: 'chat', params: {}, confidence: parsed.confidence };
+      // 確信度が低いものを除外
+      const validIntents = parsed.intents.filter(i => i.confidence >= 0.5);
+
+      if (validIntents.length > 0) {
+        return validIntents;
       }
-
-      return parsed;
     }
   } catch (error) {
     console.error('Intent parse error:', error);
   }
 
-  return { intent: 'chat', params: {}, confidence: 0 };
+  return [{ intent: 'chat', params: {}, confidence: 0 }];
 }

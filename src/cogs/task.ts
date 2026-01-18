@@ -217,7 +217,7 @@ export async function executeDoneToday(): Promise<CommandResult> {
   const todayTasks = storage.getTodayTasks();
   const completedCount = todayTasks.filter(t => t.status === 'done').length;
 
-  const context = `【状況】先輩が今日の作業終了を宣言しました
+  const context = `【状況】ご主人様が今日の作業終了を宣言しました
 - 今日の完了タスク数: ${completedCount}
 - 現在時刻: ${getJSTTime()}
 

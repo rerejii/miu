@@ -108,7 +108,7 @@ export async function generateConfirmationMessage(reminder: ParsedReminder): Pro
   const daysStr = reminder.days.map(d => daysJp[d] ?? d).join('・');
   const holidayStr = reminder.include_holidays ? '（祝日含む）' : '（祝日除く）';
 
-  const context = `【状況】先輩がリマインドを登録しました
+  const context = `【状況】ご主人様がリマインドを登録しました
 - 時刻: ${reminder.time}
 - 曜日: ${daysStr}${holidayStr}
 - メッセージ: 「${reminder.message}」
