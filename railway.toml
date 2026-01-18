@@ -1,0 +1,7 @@
+[build]
+builder = "nixpacks"
+
+[deploy]
+startCommand = "node --import tsx src/bot.ts"
+restartPolicyType = "on_failure"
+restartPolicyMaxRetries = 3
