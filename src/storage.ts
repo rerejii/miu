@@ -1,9 +1,16 @@
 import Database from 'better-sqlite3';
 import path from 'path';
+import fs from 'fs';
 import { fileURLToPath } from 'url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const DB_PATH = path.join(__dirname, '..', 'data', 'yui.db');
+const DB_PATH = path.join(__dirname, '..', 'data', 'miu.db');
+
+// 環境変数 RESET_DB=true でDBをリセット
+if (process.env['RESET_DB'] === 'true' && fs.existsSync(DB_PATH)) {
+  fs.unlinkSync(DB_PATH);
+  console.log('Database reset completed:', DB_PATH);
+}
 
 export interface Task {
   id: number;
