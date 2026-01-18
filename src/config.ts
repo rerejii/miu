@@ -8,7 +8,7 @@ export const config = {
   grok: {
     apiKey: process.env['XAI_API_KEY']!,
     baseUrl: 'https://api.x.ai/v1',
-    model: 'grok-4-fast',
+    model: 'grok-4-1-fast-reasoning',
   },
   mem0: {
     apiKey: process.env['MEM0_API_KEY']!,
