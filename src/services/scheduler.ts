@@ -10,6 +10,7 @@ import { config } from '../config.js';
 let sendDMCallback: ((content: string) => Promise<void>) | null = null;
 let breakTimer: NodeJS.Timeout | null = null;
 let taskReminderTimer: NodeJS.Timeout | null = null;
+let firstReminderTimer: NodeJS.Timeout | null = null;
 
 export function setDMCallback(callback: (content: string) => Promise<void>): void {
   sendDMCallback = callback;
@@ -60,10 +61,12 @@ export function startTaskReminder(taskId: number): void {
   const task = storage.getTask(taskId);
   if (task) {
     const elapsed = storage.getElapsedMinutes(task);
-    const remaining = Math.max(0, task.duration_minutes - elapsed);
+    const remaining = Math.max(1, task.duration_minutes - elapsed); // 最低1分待つ
     const firstDelay = remaining * 60 * 1000;
 
-    setTimeout(() => {
+    console.log(`Task reminder scheduled: first in ${remaining} minutes`);
+
+    firstReminderTimer = setTimeout(() => {
       checkAndRemind();
       taskReminderTimer = setInterval(checkAndRemind, config.reminderIntervalMinutes * 60 * 1000);
     }, firstDelay);
@@ -71,6 +74,10 @@ export function startTaskReminder(taskId: number): void {
 }
 
 export function stopTaskReminder(): void {
+  if (firstReminderTimer) {
+    clearTimeout(firstReminderTimer);
+    firstReminderTimer = null;
+  }
   if (taskReminderTimer) {
     clearInterval(taskReminderTimer);
     taskReminderTimer = null;
