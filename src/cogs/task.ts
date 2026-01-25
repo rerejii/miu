@@ -6,7 +6,7 @@ import {
 import { storage } from '../storage.js';
 import { generateResponse } from '../services/grok.js';
 import { searchMemories, saveMemory } from '../services/memory.js';
-import { startTaskReminder, stopTaskReminder, startBreakTimer, startNoScheduleReminder, stopNoScheduleReminder } from '../services/scheduler.js';
+import { startTaskReminder, stopTaskReminder, startBreakTimer, startNoTaskReminder, stopNoTaskReminder } from '../services/scheduler.js';
 import {
   getTaskStartContext,
   getTaskCompleteContext,
@@ -15,7 +15,7 @@ import {
   getStatusContext,
   getHistoryContext,
 } from '../prompts/index.js';
-import { getNextEvent, getNextEventToday, formatEventForDisplay, getMinutesUntilEvent, isCalendarConfigured, getFreeTimeMinutes, createTaskEvent, updateTaskEvent } from '../services/calendar.js';
+import { getNextEventToday, formatEventForDisplay, getMinutesUntilEvent, isCalendarConfigured, createTaskEvent, updateTaskEvent } from '../services/calendar.js';
 
 function getJSTTime(): string {
   return new Date().toLocaleString('ja-JP', { timeZone: 'Asia/Tokyo' });
@@ -94,8 +94,8 @@ export async function executeNext(taskName: string, minutes: number): Promise<Co
     };
   }
 
-  // タスク開始時に予定未登録リマインダーを停止
-  stopNoScheduleReminder();
+  // タスク開始時にさぼり防止リマインダーを停止
+  stopNoTaskReminder();
 
   const task = storage.createTask(taskName, minutes);
   startTaskReminder(task.id);
@@ -155,23 +155,13 @@ export async function executeDone(comment?: string): Promise<CommandResult> {
 
   const memories = await searchMemories(currentTask.task_name);
 
-  // カレンダー情報を取得
+  // カレンダー情報を取得（表示用）
   let nextEventInfo = '';
-  let shouldStartNoScheduleReminder = false;
-
   if (isCalendarConfigured()) {
-    // 今日の残り予定をチェック（明日の予定は関係なし）
     const nextEventToday = await getNextEventToday();
     if (nextEventToday) {
       const minutesUntil = getMinutesUntilEvent(nextEventToday);
       nextEventInfo = `\n- 次の予定: ${formatEventForDisplay(nextEventToday)} (${minutesUntil}分後)`;
-    } else {
-      // 今日の残り時間に予定がない場合
-      const freeMinutes = await getFreeTimeMinutes();
-      if (freeMinutes > 30) {
-        nextEventInfo = `\n- 注意: 今日の残り時間に予定が入っていません（空き時間: 約${Math.floor(freeMinutes / 60)}時間${freeMinutes % 60}分）`;
-        shouldStartNoScheduleReminder = true;
-      }
     }
   }
 
@@ -189,10 +179,8 @@ export async function executeDone(comment?: string): Promise<CommandResult> {
   storage.addMessage('assistant', response);
   await saveMemory(`[タスク完了] ${currentTask.task_name} (予定${currentTask.duration_minutes}分→実際${elapsed}分)${comment ? ` 感想: ${comment}` : ''}`);
 
-  // 今日の残り予定がなければ、予定未登録リマインダーを開始
-  if (shouldStartNoScheduleReminder) {
-    startNoScheduleReminder();
-  }
+  // さぼり防止リマインダーを開始
+  startNoTaskReminder();
 
   return { success: true, response };
 }
@@ -260,8 +248,8 @@ export async function executeStatus(): Promise<CommandResult> {
 }
 
 export async function executeBreak(minutes: number): Promise<CommandResult> {
-  // 休憩中は予定未登録リマインダーを停止
-  stopNoScheduleReminder();
+  // 休憩中はさぼり防止リマインダーを停止
+  stopNoTaskReminder();
   startBreakTimer(minutes);
 
   const context = getBreakStartContext(minutes, getJSTTime());
@@ -288,8 +276,8 @@ export async function executeDoneToday(): Promise<CommandResult> {
       });
     }
   }
-  // 今日の作業終了なので予定未登録リマインダーも停止
-  stopNoScheduleReminder();
+  // 今日の作業終了なのでさぼり防止リマインダーも停止
+  stopNoTaskReminder();
 
   const todayTasks = storage.getTodayTasks();
   const completedCount = todayTasks.filter(t => t.status === 'done').length;

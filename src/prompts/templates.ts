@@ -119,16 +119,11 @@ export function getStatusContext(ctx: TaskContext): string {
 現在の状況を伝え、応援してください。`;
 }
 
-export function getNoScheduleReminderContext(freeMinutes: number, remindCount: number): string {
-  const hours = Math.floor(freeMinutes / 60);
-  const mins = freeMinutes % 60;
-  const freeTimeStr = hours > 0 ? `${hours}時間${mins}分` : `${mins}分`;
-
-  return `【状況】ご主人様がタスク完了後、予定を入れずに${remindCount * 10}分経過しました
-- 空き時間: 約${freeTimeStr}
+export function getNoScheduleReminderContext(remindCount: number): string {
+  return `【状況】ご主人様がタスク完了後、次のタスクを始めずに${remindCount * 10}分経過しました
 - リマインド回数: ${remindCount}回目
 
-次のタスクや予定を入れるよう促してください。
+次のタスクを始めるよう促してください。
 ${remindCount >= 2 ? '少し心配しつつ、やんわりと急かしてください。' : ''}
 ${remindCount >= 3 ? 'さぼってないか心配してください。みうは寂しいです。' : ''}`;
 }
