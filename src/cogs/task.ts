@@ -234,6 +234,7 @@ export async function executeExtend(minutes: number): Promise<CommandResult> {
     };
   }
 
+  const elapsed = storage.getElapsedMinutes(currentTask);
   storage.extendTask(currentTask.id, minutes);
   const newDuration = currentTask.duration_minutes + minutes;
 
@@ -241,7 +242,15 @@ export async function executeExtend(minutes: number): Promise<CommandResult> {
   stopTaskReminder();
   startTaskReminder(currentTask.id);
 
-  const response = `了解しました！「${currentTask.task_name}」を${minutes}分延長しますね。新しい予定時間は${newDuration}分です。引き続き頑張ってください！`;
+  const context = `【状況】ご主人様がタスクを延長しました
+- タスク: ${currentTask.task_name}
+- 延長時間: ${minutes}分
+- 新しい予定時間: ${newDuration}分（元: ${currentTask.duration_minutes}分）
+- 経過時間: ${elapsed}分
+
+延長を了承し、引き続き応援してください。`;
+
+  const response = await generateResponse(context);
   storage.addMessage('assistant', response);
   await saveMemory(`[タスク延長] ${currentTask.task_name} +${minutes}分 → 合計${newDuration}分`);
 
@@ -251,16 +260,25 @@ export async function executeExtend(minutes: number): Promise<CommandResult> {
 export async function executeReset(): Promise<CommandResult> {
   const currentTask = storage.getCurrentTask();
   if (!currentTask) {
-    return {
-      success: true,
-      response: '進行中のタスクはありません。',
-    };
+    const context = `【状況】ご主人様がタスクリセットを要求しましたが、進行中のタスクがありません
+
+その旨を伝え、新しいタスクを始めるか尋ねてください。`;
+    const response = await generateResponse(context);
+    return { success: true, response };
   }
 
+  const elapsed = storage.getElapsedMinutes(currentTask);
   storage.resetCurrentTask();
   stopTaskReminder();
 
-  const response = `「${currentTask.task_name}」をリセットしました。新しいタスクを始めることができます。`;
+  const context = `【状況】ご主人様がタスクをリセット（強制終了）しました
+- タスク: ${currentTask.task_name}
+- 経過時間: ${elapsed}分
+- 予定時間: ${currentTask.duration_minutes}分
+
+リセットを了承し、次のタスクについて尋ねてください。`;
+
+  const response = await generateResponse(context);
   storage.addMessage('assistant', response);
 
   return { success: true, response };
