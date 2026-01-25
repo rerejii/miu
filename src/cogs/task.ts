@@ -15,7 +15,7 @@ import {
   getStatusContext,
   getHistoryContext,
 } from '../prompts/index.js';
-import { getNextEvent, formatEventForDisplay, getMinutesUntilEvent, isCalendarConfigured, hasRemainingEventsToday, getFreeTimeMinutes } from '../services/calendar.js';
+import { getNextEvent, formatEventForDisplay, getMinutesUntilEvent, isCalendarConfigured, hasRemainingEventsToday, getFreeTimeMinutes, createTaskEvent, updateTaskEvent } from '../services/calendar.js';
 
 function getJSTTime(): string {
   return new Date().toLocaleString('ja-JP', { timeZone: 'Asia/Tokyo' });
@@ -100,6 +100,18 @@ export async function executeNext(taskName: string, minutes: number): Promise<Co
   const task = storage.createTask(taskName, minutes);
   startTaskReminder(task.id);
 
+  // カレンダーにタスクを登録
+  if (isCalendarConfigured()) {
+    const eventId = await createTaskEvent({
+      taskName,
+      durationMinutes: minutes,
+      taskId: task.id,
+    });
+    if (eventId) {
+      storage.setCalendarEventId(task.id, eventId);
+    }
+  }
+
   const todayCount = storage.getTodayCompletedCount();
   const memories = await searchMemories(taskName);
 
@@ -130,6 +142,16 @@ export async function executeDone(comment?: string): Promise<CommandResult> {
   const elapsed = storage.getElapsedMinutes(currentTask);
   storage.completeTask(currentTask.id, comment);
   stopTaskReminder();
+
+  // カレンダーのイベントを更新
+  if (currentTask.calendar_event_id) {
+    await updateTaskEvent({
+      eventId: currentTask.calendar_event_id,
+      taskName: currentTask.task_name,
+      actualMinutes: elapsed,
+      status: 'done',
+    });
+  }
 
   const memories = await searchMemories(currentTask.task_name);
 
@@ -189,6 +211,16 @@ export async function executeSkip(): Promise<CommandResult> {
   storage.skipTask(currentTask.id);
   stopTaskReminder();
 
+  // カレンダーのイベントを更新
+  if (currentTask.calendar_event_id) {
+    await updateTaskEvent({
+      eventId: currentTask.calendar_event_id,
+      taskName: currentTask.task_name,
+      actualMinutes: elapsed,
+      status: 'skipped',
+    });
+  }
+
   const memories = await searchMemories(currentTask.task_name);
 
   const context = getTaskSkipContext({
@@ -243,8 +275,19 @@ export async function executeBreak(minutes: number): Promise<CommandResult> {
 export async function executeDoneToday(): Promise<CommandResult> {
   const currentTask = storage.getCurrentTask();
   if (currentTask) {
+    const elapsed = storage.getElapsedMinutes(currentTask);
     storage.skipTask(currentTask.id);
     stopTaskReminder();
+
+    // カレンダーのイベントを更新
+    if (currentTask.calendar_event_id) {
+      await updateTaskEvent({
+        eventId: currentTask.calendar_event_id,
+        taskName: currentTask.task_name,
+        actualMinutes: elapsed,
+        status: 'skipped',
+      });
+    }
   }
   // 今日の作業終了なので予定未登録リマインダーも停止
   stopNoScheduleReminder();

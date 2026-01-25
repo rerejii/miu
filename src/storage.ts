@@ -20,6 +20,7 @@ export interface Task {
   completed_at: string | null;
   status: 'working' | 'done' | 'skipped';
   comment: string | null;
+  calendar_event_id: string | null;
   created_at: string;
 }
 
@@ -75,6 +76,7 @@ class Storage {
         completed_at DATETIME,
         status TEXT NOT NULL DEFAULT 'working',
         comment TEXT,
+        calendar_event_id TEXT,
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP
       );
 
@@ -109,6 +111,13 @@ class Storage {
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP
       );
     `);
+
+    // マイグレーション: calendar_event_id カラムを追加
+    try {
+      this.db.exec('ALTER TABLE tasks ADD COLUMN calendar_event_id TEXT');
+    } catch {
+      // カラムが既に存在する場合は無視
+    }
   }
 
   // Tasks
@@ -147,6 +156,14 @@ class Storage {
       WHERE id = ?
     `);
     stmt.run(getJSTISOString(), id);
+  }
+
+  setCalendarEventId(id: number, eventId: string): void {
+    const stmt = this.db.prepare(`
+      UPDATE tasks SET calendar_event_id = ?
+      WHERE id = ?
+    `);
+    stmt.run(eventId, id);
   }
 
   getTodayTasks(): Task[] {

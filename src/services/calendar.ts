@@ -18,7 +18,7 @@ function getCalendarClient(): calendar_v3.Calendar | null {
     const auth = new google.auth.JWT({
       email: config.googleCalendar.serviceAccountEmail,
       key: config.googleCalendar.privateKey,
-      scopes: ['https://www.googleapis.com/auth/calendar.readonly'],
+      scopes: ['https://www.googleapis.com/auth/calendar'],  // 読み書き両方
     });
 
     calendarClient = google.calendar({ version: 'v3', auth });
@@ -186,6 +186,96 @@ export async function getFreeTimeMinutes(): Promise<number> {
   }
 
   return Math.floor((bedtime.getTime() - now.getTime()) / (1000 * 60));
+}
+
+// タスクをカレンダーに作成
+export interface CreateTaskEventParams {
+  taskName: string;
+  durationMinutes: number;
+  taskId: number;
+}
+
+export async function createTaskEvent(params: CreateTaskEventParams): Promise<string | null> {
+  const client = getCalendarClient();
+  if (!client) return null;
+
+  try {
+    const now = getJSTDate();
+    const endTime = new Date(now.getTime() + params.durationMinutes * 60 * 1000);
+
+    const response = await client.events.insert({
+      calendarId: config.googleCalendar.calendarId,
+      requestBody: {
+        summary: `[タスク] ${params.taskName}`,
+        description: `miu-bot タスクID: ${params.taskId}`,
+        start: {
+          dateTime: now.toISOString(),
+          timeZone: 'Asia/Tokyo',
+        },
+        end: {
+          dateTime: endTime.toISOString(),
+          timeZone: 'Asia/Tokyo',
+        },
+        colorId: '9', // 青紫色
+      },
+    });
+
+    console.log(`Calendar event created: ${response.data.id}`);
+    return response.data.id ?? null;
+  } catch (error) {
+    console.error('Failed to create calendar event:', error);
+    return null;
+  }
+}
+
+// カレンダーのタスクイベントを更新（完了/スキップ時）
+export interface UpdateTaskEventParams {
+  eventId: string;
+  taskName: string;
+  actualMinutes: number;
+  status: 'done' | 'skipped';
+}
+
+export async function updateTaskEvent(params: UpdateTaskEventParams): Promise<boolean> {
+  const client = getCalendarClient();
+  if (!client) return false;
+
+  try {
+    // 現在のイベントを取得
+    const event = await client.events.get({
+      calendarId: config.googleCalendar.calendarId,
+      eventId: params.eventId,
+    });
+
+    if (!event.data.start?.dateTime) return false;
+
+    const startTime = new Date(event.data.start.dateTime);
+    const actualEndTime = new Date(startTime.getTime() + params.actualMinutes * 60 * 1000);
+
+    const statusEmoji = params.status === 'done' ? '✓' : '→';
+    const statusText = params.status === 'done' ? '完了' : 'スキップ';
+
+    await client.events.update({
+      calendarId: config.googleCalendar.calendarId,
+      eventId: params.eventId,
+      requestBody: {
+        ...event.data,
+        summary: `${statusEmoji} ${params.taskName}`,
+        description: `${event.data.description}\n${statusText}: ${params.actualMinutes}分`,
+        end: {
+          dateTime: actualEndTime.toISOString(),
+          timeZone: 'Asia/Tokyo',
+        },
+        colorId: params.status === 'done' ? '10' : '8', // 完了=緑, スキップ=グレー
+      },
+    });
+
+    console.log(`Calendar event updated: ${params.eventId}`);
+    return true;
+  } catch (error) {
+    console.error('Failed to update calendar event:', error);
+    return false;
+  }
 }
 
 // 初期化テスト
