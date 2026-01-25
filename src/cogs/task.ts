@@ -15,6 +15,7 @@ import {
   getStatusContext,
   getHistoryContext,
 } from '../prompts/index.js';
+import { getNextEvent, formatEventForDisplay, getMinutesUntilEvent, isCalendarConfigured } from '../services/calendar.js';
 
 function getJSTTime(): string {
   return new Date().toLocaleString('ja-JP', { timeZone: 'Asia/Tokyo' });
@@ -129,6 +130,16 @@ export async function executeDone(comment?: string): Promise<CommandResult> {
 
   const memories = await searchMemories(currentTask.task_name);
 
+  // 次の予定を取得
+  let nextEventInfo = '';
+  if (isCalendarConfigured()) {
+    const nextEvent = await getNextEvent();
+    if (nextEvent) {
+      const minutesUntil = getMinutesUntilEvent(nextEvent);
+      nextEventInfo = `\n- 次の予定: ${formatEventForDisplay(nextEvent)} (${minutesUntil}分後)`;
+    }
+  }
+
   const context = getTaskCompleteContext({
     taskName: currentTask.task_name,
     duration: currentTask.duration_minutes,
@@ -136,6 +147,7 @@ export async function executeDone(comment?: string): Promise<CommandResult> {
     comment,
     currentTime: getJSTTime(),
     mem0Context: memories,
+    nextEvent: nextEventInfo,
   });
 
   const response = await generateResponse(context);

@@ -7,6 +7,7 @@ export interface TaskContext {
   remindCount?: number;
   comment?: string;
   mem0Context?: string;
+  nextEvent?: string;
 }
 
 export function getTaskStartContext(ctx: TaskContext): string {
@@ -39,12 +40,13 @@ export function getTaskCompleteContext(ctx: TaskContext): string {
   return `【状況】ご主人様がタスクを完了しました
 - タスク: ${ctx.taskName}
 - 実際の所要時間: ${ctx.elapsed}分（予定: ${ctx.duration}分）
-- コメント: ${ctx.comment ?? 'なし'}
+- コメント: ${ctx.comment ?? 'なし'}${ctx.nextEvent ?? ''}
 
 【過去の記憶】
 ${ctx.mem0Context ?? 'なし'}
 
-全力で喜んで労いのメッセージを返してください。みうも嬉しいと伝えてください。`;
+全力で喜んで労いのメッセージを返してください。みうも嬉しいと伝えてください。
+次の予定がある場合は、それも伝えてください。`;
 }
 
 export function getTaskSkipContext(ctx: TaskContext): string {

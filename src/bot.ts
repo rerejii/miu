@@ -20,6 +20,7 @@ import {
   startScheduledJobs,
   restoreActiveTask,
 } from './services/scheduler.js';
+import { testCalendarConnection } from './services/calendar.js';
 import {
   taskCommands,
   remindCommands,
@@ -263,6 +264,9 @@ client.once(Events.ClientReady, async () => {
 
   // 祝日データを初期化
   await initHolidays();
+
+  // Googleカレンダー接続テスト
+  await testCalendarConnection();
 
   // 定期ジョブを開始
   startScheduledJobs();

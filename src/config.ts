@@ -14,6 +14,11 @@ export const config = {
     apiKey: process.env['MEM0_API_KEY']!,
     baseUrl: 'https://api.mem0.ai/v1',
   },
+  googleCalendar: {
+    calendarId: process.env['GOOGLE_CALENDAR_ID'] ?? '',
+    serviceAccountEmail: process.env['GOOGLE_SERVICE_ACCOUNT_EMAIL'] ?? '',
+    privateKey: (process.env['GOOGLE_PRIVATE_KEY'] ?? '').replace(/\\n/g, '\n'),
+  },
   timezone: process.env['TZ'] ?? 'Asia/Tokyo',
   reminderIntervalMinutes: 10,
 };
