@@ -132,6 +132,15 @@ class Storage {
         coins INTEGER NOT NULL DEFAULT 100
       );
 
+      CREATE TABLE IF NOT EXISTS user_state (
+        id INTEGER PRIMARY KEY CHECK (id = 1),
+        is_awake INTEGER NOT NULL DEFAULT 1,
+        last_wake_at DATETIME,
+        last_sleep_at DATETIME
+      );
+
+      INSERT OR IGNORE INTO user_state (id, is_awake) VALUES (1, 1);
+
       CREATE TABLE IF NOT EXISTS coin_transactions (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         amount INTEGER NOT NULL,
@@ -404,6 +413,41 @@ class Storage {
       LIMIT ?
     `);
     return stmt.all(limit) as CoinTransaction[];
+  }
+
+  // User State (awake/asleep)
+  isAwake(): boolean {
+    const stmt = this.db.prepare('SELECT is_awake FROM user_state WHERE id = 1');
+    const result = stmt.get() as { is_awake: number } | undefined;
+    return result?.is_awake === 1;
+  }
+
+  setAwake(): void {
+    const stmt = this.db.prepare(`
+      UPDATE user_state SET is_awake = 1, last_wake_at = ?
+      WHERE id = 1
+    `);
+    stmt.run(getJSTISOString());
+  }
+
+  setAsleep(): void {
+    const stmt = this.db.prepare(`
+      UPDATE user_state SET is_awake = 0, last_sleep_at = ?
+      WHERE id = 1
+    `);
+    stmt.run(getJSTISOString());
+  }
+
+  getLastWakeTime(): string | null {
+    const stmt = this.db.prepare('SELECT last_wake_at FROM user_state WHERE id = 1');
+    const result = stmt.get() as { last_wake_at: string | null } | undefined;
+    return result?.last_wake_at ?? null;
+  }
+
+  getLastSleepTime(): string | null {
+    const stmt = this.db.prepare('SELECT last_sleep_at FROM user_state WHERE id = 1');
+    const result = stmt.get() as { last_sleep_at: string | null } | undefined;
+    return result?.last_sleep_at ?? null;
   }
 }
 

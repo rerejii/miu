@@ -31,6 +31,9 @@ import {
   executeSkip,
   executeExtend,
   executeReset,
+  executeCoins,
+  executeWake,
+  executeSleep,
   executeStatus,
   executeBreak,
   executeDoneToday,
@@ -98,6 +101,9 @@ function getIntentLabel(intent: IntentType, params: IntentParams): string {
     skip: 'タスクスキップ',
     extend: `タスク延長: ${params.minutes ?? 30}分`,
     reset: 'タスクリセット',
+    coins: 'おこづかい確認',
+    wake: '起床',
+    sleep: '就寝',
     status: '状況確認',
     break: `休憩: ${params.minutes ?? 10}分`,
     done_today: '本日終了',
@@ -131,6 +137,18 @@ async function executeSingleIntent(intent: IntentType, params: IntentParams): Pr
     }
     case 'reset': {
       const result = await executeReset();
+      return result.response;
+    }
+    case 'coins': {
+      const result = await executeCoins();
+      return result.response;
+    }
+    case 'wake': {
+      const result = await executeWake();
+      return result.response;
+    }
+    case 'sleep': {
+      const result = await executeSleep();
       return result.response;
     }
     case 'status': {

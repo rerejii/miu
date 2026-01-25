@@ -105,6 +105,12 @@ export function stopBreakTimer(): void {
 
 // さぼり防止リマインダー（10分ごとにタスクがなければリマインド）
 async function checkNoTaskAndRemind(): Promise<void> {
+  // ユーザーが寝ている場合はスキップ
+  if (!storage.isAwake()) {
+    noTaskRemindCount = 0;
+    return;
+  }
+
   // 現在タスクが進行中ならスキップ
   const currentTask = storage.getCurrentTask();
   if (currentTask) {

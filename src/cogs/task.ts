@@ -297,6 +297,71 @@ export async function executeReset(): Promise<CommandResult> {
   return { success: true, response };
 }
 
+export async function executeCoins(): Promise<CommandResult> {
+  const coins = storage.getCoins();
+  const transactions = storage.getRecentTransactions(5);
+
+  let historyText = '';
+  if (transactions.length > 0) {
+    historyText = transactions.map(t => {
+      const sign = t.amount >= 0 ? '+' : '';
+      return `${sign}${t.amount}: ${t.reason}`;
+    }).join('\n');
+  }
+
+  const context = `【状況】ご主人様がおこづかいの残高を確認しています
+- 現在の残高: ${coins}コイン
+- 最近の履歴:
+${historyText || 'なし'}
+
+残高を伝え、${coins >= 100 ? '貯まってきて嬉しいと伝えてください' : 'もっと頑張ってコインを貯めようと励ましてください'}。`;
+
+  const response = await generateResponse(context);
+  return { success: true, response };
+}
+
+export async function executeWake(): Promise<CommandResult> {
+  storage.setAwake();
+  const coins = storage.getCoins();
+  const todayCount = storage.getTodayCompletedCount();
+
+  const context = `【状況】ご主人様が起床しました
+- 現在時刻: ${getJSTTime()}
+- おこづかい残高: ${coins}コイン
+- 今日の完了タスク: ${todayCount}
+
+おはようと元気に挨拶し、今日も一緒に頑張ろうと伝えてください。`;
+
+  const response = await generateResponse(context);
+  storage.addMessage('assistant', response);
+  await saveMemory(`[起床] ${getJSTTime()}`);
+
+  return { success: true, response };
+}
+
+export async function executeSleep(): Promise<CommandResult> {
+  // 就寝時はさぼり防止リマインダーを停止
+  stopNoTaskReminder();
+  storage.setAsleep();
+
+  const todayTasks = storage.getTodayTasks();
+  const completedCount = todayTasks.filter(t => t.status === 'done').length;
+  const coins = storage.getCoins();
+
+  const context = `【状況】ご主人様が就寝を宣言しました
+- 現在時刻: ${getJSTTime()}
+- 今日の完了タスク数: ${completedCount}
+- おこづかい残高: ${coins}コイン
+
+今日の頑張りを労い、おやすみの挨拶をしてください。明日も一緒に頑張ろうと伝えてください。`;
+
+  const response = await generateResponse(context);
+  storage.addMessage('assistant', response);
+  await saveMemory(`[就寝] 完了タスク数: ${completedCount}`);
+
+  return { success: true, response };
+}
+
 export async function executeStatus(): Promise<CommandResult> {
   const currentTask = storage.getCurrentTask();
   if (!currentTask) {
