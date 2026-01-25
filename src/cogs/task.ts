@@ -153,6 +153,12 @@ export async function executeDone(comment?: string): Promise<CommandResult> {
     });
   }
 
+  // コイン付与: 時間内なら+10、超過なら+5
+  const onTime = elapsed <= currentTask.duration_minutes;
+  const coinAmount = onTime ? 10 : 5;
+  const coinReason = onTime ? 'タスク完了（時間内）' : 'タスク完了（時間超過）';
+  const newBalance = storage.addCoins(coinAmount, coinReason);
+
   const memories = await searchMemories(currentTask.task_name);
 
   // カレンダー情報を取得（表示用）
@@ -173,6 +179,8 @@ export async function executeDone(comment?: string): Promise<CommandResult> {
     currentTime: getJSTTime(),
     mem0Context: memories,
     nextEvent: nextEventInfo,
+    coinEarned: coinAmount,
+    totalCoins: newBalance,
   });
 
   const response = await generateResponse(context);
@@ -208,6 +216,9 @@ export async function executeSkip(): Promise<CommandResult> {
     });
   }
 
+  // コイン没収: -5
+  const newBalance = storage.subtractCoins(5, 'タスクスキップ');
+
   const memories = await searchMemories(currentTask.task_name);
 
   const context = getTaskSkipContext({
@@ -216,6 +227,8 @@ export async function executeSkip(): Promise<CommandResult> {
     elapsed,
     currentTime: getJSTTime(),
     mem0Context: memories,
+    coinLost: 5,
+    totalCoins: newBalance,
   });
 
   const response = await generateResponse(context);

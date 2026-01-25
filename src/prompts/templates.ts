@@ -8,6 +8,9 @@ export interface TaskContext {
   comment?: string;
   mem0Context?: string;
   nextEvent?: string;
+  coinEarned?: number;
+  coinLost?: number;
+  totalCoins?: number;
 }
 
 export function getTaskStartContext(ctx: TaskContext): string {
@@ -37,28 +40,31 @@ ${ctx.mem0Context ?? 'なし'}
 }
 
 export function getTaskCompleteContext(ctx: TaskContext): string {
+  const coinInfo = ctx.coinEarned ? `\n- おこづかい: +${ctx.coinEarned}コイン（残高: ${ctx.totalCoins}コイン）` : '';
   return `【状況】ご主人様がタスクを完了しました
 - タスク: ${ctx.taskName}
 - 実際の所要時間: ${ctx.elapsed}分（予定: ${ctx.duration}分）
-- コメント: ${ctx.comment ?? 'なし'}${ctx.nextEvent ?? ''}
+- コメント: ${ctx.comment ?? 'なし'}${coinInfo}${ctx.nextEvent ?? ''}
 
 【過去の記憶】
 ${ctx.mem0Context ?? 'なし'}
 
 全力で喜んで労いのメッセージを返してください。みうも嬉しいと伝えてください。
-次の予定がある場合は、それも伝えてください。
-予定が入っていない場合は、次のタスクや予定を入れるよう優しく促してください。`;
+おこづかいが増えたことも嬉しそうに伝えてください。
+次の予定がある場合は、それも伝えてください。`;
 }
 
 export function getTaskSkipContext(ctx: TaskContext): string {
+  const coinInfo = ctx.coinLost ? `\n- おこづかい: -${ctx.coinLost}コイン没収（残高: ${ctx.totalCoins}コイン）` : '';
   return `【状況】ご主人様がタスクをスキップしました
 - タスク: ${ctx.taskName}
-- 経過時間: ${ctx.elapsed}分
+- 経過時間: ${ctx.elapsed}分${coinInfo}
 
 【過去の記憶】
 ${ctx.mem0Context ?? 'なし'}
 
-少し心配しつつも、気持ちを切り替えるよう励ましてください。`;
+少し残念そうにしつつも、気持ちを切り替えるよう励ましてください。
+没収したおこづかいでお菓子を買っちゃうかも、とちょっとイタズラっぽく言ってもいいです。`;
 }
 
 export function getBreakStartContext(duration: number, currentTime: string): string {
@@ -119,11 +125,14 @@ export function getStatusContext(ctx: TaskContext): string {
 現在の状況を伝え、応援してください。`;
 }
 
-export function getNoScheduleReminderContext(remindCount: number): string {
-  return `【状況】ご主人様がタスク完了後、次のタスクを始めずに${remindCount * 10}分経過しました
-- リマインド回数: ${remindCount}回目
+export function getNoScheduleReminderContext(remindCount: number, coinLost?: number, totalCoins?: number): string {
+  const coinInfo = coinLost ? `\n- おこづかい: -${coinLost}コイン没収しちゃいました（残高: ${totalCoins}コイン）` : '';
+  return `【状況】ご主人様がタスクを始めずに${remindCount * 10}分経過しました
+- リマインド回数: ${remindCount}回目${coinInfo}
 
 次のタスクを始めるよう促してください。
-${remindCount >= 2 ? '少し心配しつつ、やんわりと急かしてください。' : ''}
-${remindCount >= 3 ? 'さぼってないか心配してください。みうは寂しいです。' : ''}`;
+${remindCount === 1 ? '優しく声をかけてください。' : ''}
+${remindCount === 2 ? '少し心配しつつ、やんわりと急かしてください。' : ''}
+${remindCount >= 3 && coinLost ? 'さぼっているのでおこづかいを没収しました。没収したコインでお菓子を買っちゃうと宣言してください。でも次頑張れば取り戻せるよと励ましてください。' : ''}
+${remindCount >= 3 && !coinLost ? 'さぼってないか心配してください。みうは寂しいです。' : ''}`;
 }

@@ -61,6 +61,14 @@ export interface RecentMessage {
   created_at: string;
 }
 
+export interface CoinTransaction {
+  id: number;
+  amount: number;
+  reason: string;
+  balance_after: number;
+  created_at: string;
+}
+
 // JST時刻をISO形式で取得
 function getJSTISOString(): string {
   return new Date().toLocaleString('sv-SE', { timeZone: 'Asia/Tokyo' }).replace(' ', 'T');
@@ -118,6 +126,21 @@ class Storage {
         content TEXT NOT NULL,
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP
       );
+
+      CREATE TABLE IF NOT EXISTS wallet (
+        id INTEGER PRIMARY KEY CHECK (id = 1),
+        coins INTEGER NOT NULL DEFAULT 100
+      );
+
+      CREATE TABLE IF NOT EXISTS coin_transactions (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        amount INTEGER NOT NULL,
+        reason TEXT NOT NULL,
+        balance_after INTEGER NOT NULL,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      );
+
+      INSERT OR IGNORE INTO wallet (id, coins) VALUES (1, 100);
     `);
 
     // マイグレーション: calendar_event_id カラムを追加
@@ -333,6 +356,54 @@ class Storage {
     // 現在のJST時刻を取得
     const nowJST = new Date(getJSTISOString());
     return Math.floor((nowJST.getTime() - started.getTime()) / (1000 * 60));
+  }
+
+  // Coins / Wallet
+  getCoins(): number {
+    const stmt = this.db.prepare('SELECT coins FROM wallet WHERE id = 1');
+    const result = stmt.get() as { coins: number } | undefined;
+    return result?.coins ?? 100;
+  }
+
+  addCoins(amount: number, reason: string): number {
+    const currentCoins = this.getCoins();
+    const newBalance = currentCoins + amount;
+
+    const updateStmt = this.db.prepare('UPDATE wallet SET coins = ? WHERE id = 1');
+    updateStmt.run(newBalance);
+
+    const logStmt = this.db.prepare(`
+      INSERT INTO coin_transactions (amount, reason, balance_after)
+      VALUES (?, ?, ?)
+    `);
+    logStmt.run(amount, reason, newBalance);
+
+    return newBalance;
+  }
+
+  subtractCoins(amount: number, reason: string): number {
+    const currentCoins = this.getCoins();
+    const newBalance = Math.max(0, currentCoins - amount);
+
+    const updateStmt = this.db.prepare('UPDATE wallet SET coins = ? WHERE id = 1');
+    updateStmt.run(newBalance);
+
+    const logStmt = this.db.prepare(`
+      INSERT INTO coin_transactions (amount, reason, balance_after)
+      VALUES (?, ?, ?)
+    `);
+    logStmt.run(-amount, reason, newBalance);
+
+    return newBalance;
+  }
+
+  getRecentTransactions(limit: number = 5): CoinTransaction[] {
+    const stmt = this.db.prepare(`
+      SELECT * FROM coin_transactions
+      ORDER BY created_at DESC
+      LIMIT ?
+    `);
+    return stmt.all(limit) as CoinTransaction[];
   }
 }
 

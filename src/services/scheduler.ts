@@ -123,7 +123,16 @@ async function checkNoTaskAndRemind(): Promise<void> {
   console.log(`[NoTaskReminder] No task detected, sending reminder #${noTaskRemindCount} (slot=${slot})`);
 
   try {
-    const context = getNoScheduleReminderContext(noTaskRemindCount);
+    // 3回目以降はコイン没収（10コイン）
+    let coinLost: number | undefined;
+    let totalCoins: number | undefined;
+    if (noTaskRemindCount >= 3) {
+      totalCoins = storage.subtractCoins(10, `さぼりリマインド${noTaskRemindCount}回目`);
+      coinLost = 10;
+      console.log(`[NoTaskReminder] Confiscated 10 coins, balance: ${totalCoins}`);
+    }
+
+    const context = getNoScheduleReminderContext(noTaskRemindCount, coinLost, totalCoins);
     const response = await generateResponse(context);
     await sendDM(response);
     console.log('[NoTaskReminder] DM sent successfully');
