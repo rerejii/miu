@@ -4,7 +4,15 @@ import fs from 'fs';
 import { fileURLToPath } from 'url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const DB_PATH = path.join(__dirname, '..', 'data', 'miu.db');
+
+// Railway Volumes使用時は /app/data、ローカルは ./data
+const DATA_DIR = process.env['RAILWAY_VOLUME_MOUNT_PATH'] || path.join(__dirname, '..', 'data');
+const DB_PATH = path.join(DATA_DIR, 'miu.db');
+
+// データディレクトリがなければ作成
+if (!fs.existsSync(DATA_DIR)) {
+  fs.mkdirSync(DATA_DIR, { recursive: true });
+}
 
 // 環境変数 RESET_DB=true でDBをリセット
 if (process.env['RESET_DB'] === 'true' && fs.existsSync(DB_PATH)) {

@@ -5,3 +5,7 @@ builder = "nixpacks"
 startCommand = "node --import tsx src/bot.ts"
 restartPolicyType = "on_failure"
 restartPolicyMaxRetries = 3
+
+[[mounts]]
+source = "miu_data"
+destination = "/app/data"
