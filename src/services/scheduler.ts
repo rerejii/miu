@@ -103,72 +103,52 @@ export function stopBreakTimer(): void {
   }
 }
 
-// さぼり防止リマインダー（タスク完了後、次のタスクを始めないと10分おきにリマインド）
-let noTaskReminderTimer: NodeJS.Timeout | null = null;
-let noTaskInitialTimer: NodeJS.Timeout | null = null;
+// さぼり防止リマインダー（10分ごとにタスクがなければリマインド）
+async function checkNoTaskAndRemind(): Promise<void> {
+  // 現在タスクが進行中ならスキップ
+  const currentTask = storage.getCurrentTask();
+  if (currentTask) {
+    noTaskRemindCount = 0;  // タスク中はカウントリセット
+    return;
+  }
 
-export function startNoTaskReminder(): void {
-  stopNoTaskReminder();
-  noTaskRemindCount = 0;
+  // 通知可能時間帯かチェック
+  const { allowed, slot } = checkNotificationWindow();
+  if (!allowed) {
+    noTaskRemindCount = 0;  // 通知時間外はカウントリセット
+    return;
+  }
 
-  const checkAndRemind = async () => {
-    console.log('[NoTaskReminder] checkAndRemind called');
+  noTaskRemindCount++;
+  console.log(`[NoTaskReminder] No task detected, sending reminder #${noTaskRemindCount} (slot=${slot})`);
 
-    // 現在タスクが進行中なら停止
-    const currentTask = storage.getCurrentTask();
-    if (currentTask) {
-      console.log('[NoTaskReminder] Task in progress, stopping');
-      stopNoTaskReminder();
-      return;
-    }
-
-    // 通知可能時間帯かチェック
-    const { allowed, slot } = checkNotificationWindow();
-    console.log(`[NoTaskReminder] Notification window: allowed=${allowed}, slot=${slot}`);
-    if (!allowed) {
-      console.log('[NoTaskReminder] Outside notification window, stopping');
-      stopNoTaskReminder();
-      return;
-    }
-
-    noTaskRemindCount++;
-    console.log(`[NoTaskReminder] Sending reminder #${noTaskRemindCount}`);
-
-    try {
-      const context = getNoScheduleReminderContext(noTaskRemindCount);
-      const response = await generateResponse(context);
-      console.log(`[NoTaskReminder] Generated response: ${response.substring(0, 50)}...`);
-      await sendDM(response);
-      console.log('[NoTaskReminder] DM sent successfully');
-    } catch (error) {
-      console.error('[NoTaskReminder] Error:', error);
-    }
-  };
-
-  // 最初のリマインドは10秒後、以降は10分間隔
-  console.log('[NoTaskReminder] Started: first in 10 seconds, then every 10 minutes');
-  noTaskInitialTimer = setTimeout(() => {
-    noTaskInitialTimer = null;
-    console.log('[NoTaskReminder] Initial timer fired');
-    checkAndRemind();
-    noTaskReminderTimer = setInterval(checkAndRemind, config.reminderIntervalMinutes * 60 * 1000);
-  }, 10 * 1000);
+  try {
+    const context = getNoScheduleReminderContext(noTaskRemindCount);
+    const response = await generateResponse(context);
+    await sendDM(response);
+    console.log('[NoTaskReminder] DM sent successfully');
+  } catch (error) {
+    console.error('[NoTaskReminder] Error:', error);
+  }
 }
 
+// 互換性のため残す（タスク開始時にカウントリセット）
 export function stopNoTaskReminder(): void {
-  if (noTaskInitialTimer) {
-    clearTimeout(noTaskInitialTimer);
-    noTaskInitialTimer = null;
-  }
-  if (noTaskReminderTimer) {
-    clearInterval(noTaskReminderTimer);
-    noTaskReminderTimer = null;
-  }
   noTaskRemindCount = 0;
+}
+
+// 互換性のため残す（何もしない - cronで自動実行）
+export function startNoTaskReminder(): void {
+  // cronで自動実行されるので何もしない
 }
 
 // 定期cron
 export function startScheduledJobs(): void {
+  // 10分ごと: さぼり防止リマインド（タスクがなければリマインド）
+  cron.schedule('*/10 * * * *', async () => {
+    await checkNoTaskAndRemind();
+  }, { timezone: 'Asia/Tokyo' });
+
   // 毎日0:00に祝日リストを更新
   cron.schedule('0 0 * * *', async () => {
     console.log('Refreshing holidays...');
