@@ -97,10 +97,24 @@ export async function getUpcomingEvents(hours: number = 3): Promise<CalendarEven
   }
 }
 
-// 直近の予定を1件取得
+// 直近の予定を1件取得（24時間以内）
 export async function getNextEvent(): Promise<CalendarEvent | null> {
   const events = await getUpcomingEvents(24);
   return events.length > 0 ? events[0] : null;
+}
+
+// 今日の残り時間で次の予定を取得
+export async function getNextEventToday(): Promise<CalendarEvent | null> {
+  const now = getJSTDate();
+  const endOfDay = new Date(now);
+  endOfDay.setHours(23, 59, 59, 999);
+
+  const hoursUntilEndOfDay = (endOfDay.getTime() - now.getTime()) / (1000 * 60 * 60);
+  const events = await getUpcomingEvents(Math.ceil(hoursUntilEndOfDay));
+
+  // 今日中に始まる予定のみをフィルタ
+  const todayEvents = events.filter(event => event.start <= endOfDay);
+  return todayEvents.length > 0 ? todayEvents[0] : null;
 }
 
 // APIレスポンスをCalendarEventに変換

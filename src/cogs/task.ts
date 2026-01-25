@@ -15,7 +15,7 @@ import {
   getStatusContext,
   getHistoryContext,
 } from '../prompts/index.js';
-import { getNextEvent, formatEventForDisplay, getMinutesUntilEvent, isCalendarConfigured, hasRemainingEventsToday, getFreeTimeMinutes, createTaskEvent, updateTaskEvent } from '../services/calendar.js';
+import { getNextEvent, getNextEventToday, formatEventForDisplay, getMinutesUntilEvent, isCalendarConfigured, getFreeTimeMinutes, createTaskEvent, updateTaskEvent } from '../services/calendar.js';
 
 function getJSTTime(): string {
   return new Date().toLocaleString('ja-JP', { timeZone: 'Asia/Tokyo' });
@@ -157,21 +157,20 @@ export async function executeDone(comment?: string): Promise<CommandResult> {
 
   // カレンダー情報を取得
   let nextEventInfo = '';
-  let noScheduleReminder = '';
+  let shouldStartNoScheduleReminder = false;
 
   if (isCalendarConfigured()) {
-    const nextEvent = await getNextEvent();
-    if (nextEvent) {
-      const minutesUntil = getMinutesUntilEvent(nextEvent);
-      nextEventInfo = `\n- 次の予定: ${formatEventForDisplay(nextEvent)} (${minutesUntil}分後)`;
+    // 今日の残り予定をチェック（明日の予定は関係なし）
+    const nextEventToday = await getNextEventToday();
+    if (nextEventToday) {
+      const minutesUntil = getMinutesUntilEvent(nextEventToday);
+      nextEventInfo = `\n- 次の予定: ${formatEventForDisplay(nextEventToday)} (${minutesUntil}分後)`;
     } else {
-      // 次の予定がない場合
-      const hasEvents = await hasRemainingEventsToday();
-      if (!hasEvents) {
-        const freeMinutes = await getFreeTimeMinutes();
-        if (freeMinutes > 30) {
-          noScheduleReminder = `\n- 注意: 今日の残り時間に予定が入っていません（空き時間: 約${Math.floor(freeMinutes / 60)}時間${freeMinutes % 60}分）`;
-        }
+      // 今日の残り時間に予定がない場合
+      const freeMinutes = await getFreeTimeMinutes();
+      if (freeMinutes > 30) {
+        nextEventInfo = `\n- 注意: 今日の残り時間に予定が入っていません（空き時間: 約${Math.floor(freeMinutes / 60)}時間${freeMinutes % 60}分）`;
+        shouldStartNoScheduleReminder = true;
       }
     }
   }
@@ -183,15 +182,15 @@ export async function executeDone(comment?: string): Promise<CommandResult> {
     comment,
     currentTime: getJSTTime(),
     mem0Context: memories,
-    nextEvent: nextEventInfo || noScheduleReminder,
+    nextEvent: nextEventInfo,
   });
 
   const response = await generateResponse(context);
   storage.addMessage('assistant', response);
   await saveMemory(`[タスク完了] ${currentTask.task_name} (予定${currentTask.duration_minutes}分→実際${elapsed}分)${comment ? ` 感想: ${comment}` : ''}`);
 
-  // 次の予定がなければ、予定未登録リマインダーを開始
-  if (noScheduleReminder) {
+  // 今日の残り予定がなければ、予定未登録リマインダーを開始
+  if (shouldStartNoScheduleReminder) {
     startNoScheduleReminder();
   }
 

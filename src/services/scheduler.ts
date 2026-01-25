@@ -6,13 +6,14 @@ import { checkNotificationWindow, isWorkday, getDayOfWeek, isHoliday } from './t
 import { fetchHolidays, shouldRefreshHolidays } from './holidays.js';
 import { getRemindContext, getDailyGreetingContext, getBreakEndContext, getNoScheduleReminderContext } from '../prompts/index.js';
 import { config } from '../config.js';
-import { isCalendarConfigured, getNextEvent, getFreeTimeMinutes } from './calendar.js';
+import { isCalendarConfigured, getNextEventToday, getFreeTimeMinutes } from './calendar.js';
 
 let sendDMCallback: ((content: string) => Promise<void>) | null = null;
 let breakTimer: NodeJS.Timeout | null = null;
 let taskReminderTimer: NodeJS.Timeout | null = null;
 let firstReminderTimer: NodeJS.Timeout | null = null;
 let noScheduleReminderTimer: NodeJS.Timeout | null = null;
+let noScheduleInitialTimer: NodeJS.Timeout | null = null;
 let noScheduleRemindCount: number = 0;
 
 export function setDMCallback(callback: (content: string) => Promise<void>): void {
@@ -123,10 +124,10 @@ export function startNoScheduleReminder(): void {
       return;
     }
 
-    // 次の予定があるかチェック
-    const nextEvent = await getNextEvent();
-    if (nextEvent) {
-      console.log('Next event found, stopping no-schedule reminder');
+    // 今日の残り予定があるかチェック（明日の予定は関係なし）
+    const nextEventToday = await getNextEventToday();
+    if (nextEventToday) {
+      console.log('Next event today found, stopping no-schedule reminder');
       stopNoScheduleReminder();
       return;
     }
@@ -153,12 +154,20 @@ export function startNoScheduleReminder(): void {
     await sendDM(response);
   };
 
-  // 最初は10分後から開始
-  console.log('No-schedule reminder started: first in 10 minutes');
-  noScheduleReminderTimer = setInterval(checkAndRemind, config.reminderIntervalMinutes * 60 * 1000);
+  // 最初のリマインドは即座に（10秒後）、以降は10分間隔
+  console.log('No-schedule reminder started: first reminder in 10 seconds, then every 10 minutes');
+  noScheduleInitialTimer = setTimeout(() => {
+    noScheduleInitialTimer = null;
+    checkAndRemind();
+    noScheduleReminderTimer = setInterval(checkAndRemind, config.reminderIntervalMinutes * 60 * 1000);
+  }, 10 * 1000);  // 10秒後に最初のリマインド
 }
 
 export function stopNoScheduleReminder(): void {
+  if (noScheduleInitialTimer) {
+    clearTimeout(noScheduleInitialTimer);
+    noScheduleInitialTimer = null;
+  }
   if (noScheduleReminderTimer) {
     clearInterval(noScheduleReminderTimer);
     noScheduleReminderTimer = null;
