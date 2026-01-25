@@ -46,7 +46,8 @@ export function getTaskCompleteContext(ctx: TaskContext): string {
 ${ctx.mem0Context ?? 'なし'}
 
 全力で喜んで労いのメッセージを返してください。みうも嬉しいと伝えてください。
-次の予定がある場合は、それも伝えてください。`;
+次の予定がある場合は、それも伝えてください。
+予定が入っていない場合は、次のタスクや予定を入れるよう優しく促してください。`;
 }
 
 export function getTaskSkipContext(ctx: TaskContext): string {
@@ -116,4 +117,18 @@ export function getStatusContext(ctx: TaskContext): string {
 - 経過時間: ${ctx.elapsed}分
 
 現在の状況を伝え、応援してください。`;
+}
+
+export function getNoScheduleReminderContext(freeMinutes: number, remindCount: number): string {
+  const hours = Math.floor(freeMinutes / 60);
+  const mins = freeMinutes % 60;
+  const freeTimeStr = hours > 0 ? `${hours}時間${mins}分` : `${mins}分`;
+
+  return `【状況】ご主人様がタスク完了後、予定を入れずに${remindCount * 10}分経過しました
+- 空き時間: 約${freeTimeStr}
+- リマインド回数: ${remindCount}回目
+
+次のタスクや予定を入れるよう促してください。
+${remindCount >= 2 ? '少し心配しつつ、やんわりと急かしてください。' : ''}
+${remindCount >= 3 ? 'さぼってないか心配してください。みうは寂しいです。' : ''}`;
 }

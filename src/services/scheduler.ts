@@ -4,13 +4,16 @@ import { generateResponse } from './grok.js';
 import { searchMemories, saveMemory } from './memory.js';
 import { checkNotificationWindow, isWorkday, getDayOfWeek, isHoliday } from './time_checker.js';
 import { fetchHolidays, shouldRefreshHolidays } from './holidays.js';
-import { getRemindContext, getDailyGreetingContext, getBreakEndContext } from '../prompts/index.js';
+import { getRemindContext, getDailyGreetingContext, getBreakEndContext, getNoScheduleReminderContext } from '../prompts/index.js';
 import { config } from '../config.js';
+import { isCalendarConfigured, getNextEvent, getFreeTimeMinutes } from './calendar.js';
 
 let sendDMCallback: ((content: string) => Promise<void>) | null = null;
 let breakTimer: NodeJS.Timeout | null = null;
 let taskReminderTimer: NodeJS.Timeout | null = null;
 let firstReminderTimer: NodeJS.Timeout | null = null;
+let noScheduleReminderTimer: NodeJS.Timeout | null = null;
+let noScheduleRemindCount: number = 0;
 
 export function setDMCallback(callback: (content: string) => Promise<void>): void {
   sendDMCallback = callback;
@@ -100,6 +103,67 @@ export function stopBreakTimer(): void {
     clearTimeout(breakTimer);
     breakTimer = null;
   }
+}
+
+// 予定未登録リマインダーを開始（タスク完了後、予定がないときに10分おきにリマインド）
+export function startNoScheduleReminder(): void {
+  stopNoScheduleReminder();
+
+  if (!isCalendarConfigured()) {
+    return;
+  }
+
+  noScheduleRemindCount = 0;
+
+  const checkAndRemind = async () => {
+    // 現在タスクが進行中なら停止
+    const currentTask = storage.getCurrentTask();
+    if (currentTask) {
+      stopNoScheduleReminder();
+      return;
+    }
+
+    // 次の予定があるかチェック
+    const nextEvent = await getNextEvent();
+    if (nextEvent) {
+      console.log('Next event found, stopping no-schedule reminder');
+      stopNoScheduleReminder();
+      return;
+    }
+
+    // 空き時間が30分以下なら停止（22時が近い）
+    const freeMinutes = await getFreeTimeMinutes();
+    if (freeMinutes <= 30) {
+      console.log('Free time is less than 30 minutes, stopping no-schedule reminder');
+      stopNoScheduleReminder();
+      return;
+    }
+
+    // 通知可能時間帯かチェック
+    const { allowed } = checkNotificationWindow();
+    if (!allowed) {
+      return;
+    }
+
+    noScheduleRemindCount++;
+    console.log(`No-schedule reminder #${noScheduleRemindCount}`);
+
+    const context = getNoScheduleReminderContext(freeMinutes, noScheduleRemindCount);
+    const response = await generateResponse(context);
+    await sendDM(response);
+  };
+
+  // 最初は10分後から開始
+  console.log('No-schedule reminder started: first in 10 minutes');
+  noScheduleReminderTimer = setInterval(checkAndRemind, config.reminderIntervalMinutes * 60 * 1000);
+}
+
+export function stopNoScheduleReminder(): void {
+  if (noScheduleReminderTimer) {
+    clearInterval(noScheduleReminderTimer);
+    noScheduleReminderTimer = null;
+  }
+  noScheduleRemindCount = 0;
 }
 
 // 定期cron

@@ -157,6 +157,37 @@ export function isCalendarConfigured(): boolean {
   );
 }
 
+// 今日の残り時間に予定があるかチェック
+export async function hasRemainingEventsToday(): Promise<boolean> {
+  const events = await getUpcomingEvents(12); // 12時間先まで確認
+  const now = getJSTDate();
+  const endOfDay = new Date(now);
+  endOfDay.setHours(23, 59, 59, 999);
+
+  // 今日中に始まる予定があるか
+  return events.some(event => event.start <= endOfDay);
+}
+
+// 空き時間を取得（次の予定までの分数、予定がなければ就寝時間(22時)までの分数）
+export async function getFreeTimeMinutes(): Promise<number> {
+  const now = getJSTDate();
+  const nextEvent = await getNextEvent();
+
+  if (nextEvent) {
+    return getMinutesUntilEvent(nextEvent);
+  }
+
+  // 予定がなければ22時までの時間を返す
+  const bedtime = new Date(now);
+  bedtime.setHours(22, 0, 0, 0);
+
+  if (now >= bedtime) {
+    return 0; // 既に22時過ぎ
+  }
+
+  return Math.floor((bedtime.getTime() - now.getTime()) / (1000 * 60));
+}
+
 // 初期化テスト
 export async function testCalendarConnection(): Promise<boolean> {
   if (!isCalendarConfigured()) {
