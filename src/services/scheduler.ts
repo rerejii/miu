@@ -112,34 +112,44 @@ export function startNoTaskReminder(): void {
   noTaskRemindCount = 0;
 
   const checkAndRemind = async () => {
+    console.log('[NoTaskReminder] checkAndRemind called');
+
     // 現在タスクが進行中なら停止
     const currentTask = storage.getCurrentTask();
     if (currentTask) {
-      console.log('Task started, stopping no-task reminder');
+      console.log('[NoTaskReminder] Task in progress, stopping');
       stopNoTaskReminder();
       return;
     }
 
     // 通知可能時間帯かチェック
-    const { allowed } = checkNotificationWindow();
+    const { allowed, slot } = checkNotificationWindow();
+    console.log(`[NoTaskReminder] Notification window: allowed=${allowed}, slot=${slot}`);
     if (!allowed) {
-      console.log('Outside notification window, stopping no-task reminder');
+      console.log('[NoTaskReminder] Outside notification window, stopping');
       stopNoTaskReminder();
       return;
     }
 
     noTaskRemindCount++;
-    console.log(`No-task reminder #${noTaskRemindCount}`);
+    console.log(`[NoTaskReminder] Sending reminder #${noTaskRemindCount}`);
 
-    const context = getNoScheduleReminderContext(noTaskRemindCount);
-    const response = await generateResponse(context);
-    await sendDM(response);
+    try {
+      const context = getNoScheduleReminderContext(noTaskRemindCount);
+      const response = await generateResponse(context);
+      console.log(`[NoTaskReminder] Generated response: ${response.substring(0, 50)}...`);
+      await sendDM(response);
+      console.log('[NoTaskReminder] DM sent successfully');
+    } catch (error) {
+      console.error('[NoTaskReminder] Error:', error);
+    }
   };
 
   // 最初のリマインドは10秒後、以降は10分間隔
-  console.log('No-task reminder started: first in 10 seconds, then every 10 minutes');
+  console.log('[NoTaskReminder] Started: first in 10 seconds, then every 10 minutes');
   noTaskInitialTimer = setTimeout(() => {
     noTaskInitialTimer = null;
+    console.log('[NoTaskReminder] Initial timer fired');
     checkAndRemind();
     noTaskReminderTimer = setInterval(checkAndRemind, config.reminderIntervalMinutes * 60 * 1000);
   }, 10 * 1000);
