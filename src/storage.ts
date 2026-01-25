@@ -166,6 +166,23 @@ class Storage {
     stmt.run(getJSTISOString(), id);
   }
 
+  extendTask(id: number, additionalMinutes: number): void {
+    const stmt = this.db.prepare(`
+      UPDATE tasks SET duration_minutes = duration_minutes + ?
+      WHERE id = ?
+    `);
+    stmt.run(additionalMinutes, id);
+  }
+
+  resetCurrentTask(): Task | undefined {
+    const currentTask = this.getCurrentTask();
+    if (currentTask) {
+      this.skipTask(currentTask.id);
+      return currentTask;
+    }
+    return undefined;
+  }
+
   setCalendarEventId(id: number, eventId: string): void {
     const stmt = this.db.prepare(`
       UPDATE tasks SET calendar_event_id = ?

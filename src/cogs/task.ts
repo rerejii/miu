@@ -225,6 +225,47 @@ export async function executeSkip(): Promise<CommandResult> {
   return { success: true, response };
 }
 
+export async function executeExtend(minutes: number): Promise<CommandResult> {
+  const currentTask = storage.getCurrentTask();
+  if (!currentTask) {
+    return {
+      success: false,
+      response: '進行中のタスクがありません。延長するタスクがないです。',
+    };
+  }
+
+  storage.extendTask(currentTask.id, minutes);
+  const newDuration = currentTask.duration_minutes + minutes;
+
+  // タスクリマインダーを再スケジュール
+  stopTaskReminder();
+  startTaskReminder(currentTask.id);
+
+  const response = `了解しました！「${currentTask.task_name}」を${minutes}分延長しますね。新しい予定時間は${newDuration}分です。引き続き頑張ってください！`;
+  storage.addMessage('assistant', response);
+  await saveMemory(`[タスク延長] ${currentTask.task_name} +${minutes}分 → 合計${newDuration}分`);
+
+  return { success: true, response };
+}
+
+export async function executeReset(): Promise<CommandResult> {
+  const currentTask = storage.getCurrentTask();
+  if (!currentTask) {
+    return {
+      success: true,
+      response: '進行中のタスクはありません。',
+    };
+  }
+
+  storage.resetCurrentTask();
+  stopTaskReminder();
+
+  const response = `「${currentTask.task_name}」をリセットしました。新しいタスクを始めることができます。`;
+  storage.addMessage('assistant', response);
+
+  return { success: true, response };
+}
+
 export async function executeStatus(): Promise<CommandResult> {
   const currentTask = storage.getCurrentTask();
   if (!currentTask) {

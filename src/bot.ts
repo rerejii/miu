@@ -29,6 +29,8 @@ import {
   executeNext,
   executeDone,
   executeSkip,
+  executeExtend,
+  executeReset,
   executeStatus,
   executeBreak,
   executeDoneToday,
@@ -94,6 +96,8 @@ function getIntentLabel(intent: IntentType, params: IntentParams): string {
   const labels: Record<string, string> = {
     done: params.comment ? `タスク完了: ${params.comment}` : 'タスク完了',
     skip: 'タスクスキップ',
+    extend: `タスク延長: ${params.minutes ?? 30}分`,
+    reset: 'タスクリセット',
     status: '状況確認',
     break: `休憩: ${params.minutes ?? 10}分`,
     done_today: '本日終了',
@@ -119,6 +123,14 @@ async function executeSingleIntent(intent: IntentType, params: IntentParams): Pr
     }
     case 'skip': {
       const result = await executeSkip();
+      return result.response;
+    }
+    case 'extend': {
+      const result = await executeExtend(params.minutes ?? 30);
+      return result.response;
+    }
+    case 'reset': {
+      const result = await executeReset();
       return result.response;
     }
     case 'status': {

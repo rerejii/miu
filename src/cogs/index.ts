@@ -4,6 +4,8 @@ export {
   executeNext,
   executeDone,
   executeSkip,
+  executeExtend,
+  executeReset,
   executeStatus,
   executeBreak,
   executeDoneToday,

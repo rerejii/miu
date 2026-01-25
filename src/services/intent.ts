@@ -4,6 +4,7 @@ export type IntentType =
   | 'next'      // タスク開始
   | 'done'      // タスク完了
   | 'skip'      // タスクスキップ
+  | 'extend'    // タスク延長
   | 'status'    // 状況確認
   | 'break'     // 休憩
   | 'done_today' // 今日の作業終了
@@ -11,6 +12,7 @@ export type IntentType =
   | 'remind_add' // リマインド追加
   | 'remind_list' // リマインド一覧
   | 'remind_delete' // リマインド削除
+  | 'reset'     // タスクリセット
   | 'chat';     // 通常の会話
 
 export interface IntentParams {
@@ -40,6 +42,7 @@ const INTENT_PARSE_PROMPT = `あなたはユーザーの発言から意図を解
 - next: タスクを開始する（例: 「レポート作成30分でやる」「次は会議資料を1時間で」）
 - done: タスクを完了する（例: 「終わった」「できた」「完了」）
 - skip: タスクをスキップする（例: 「やめる」「スキップ」「後でやる」）
+- extend: タスクを延長する（例: 「30分延長」「あと1時間」「延長で」「もう少しやる」）
 - status: 現在の状況確認（例: 「今どんな状況？」「進捗は？」）
 - break: 休憩する（例: 「休憩」「ちょっと休む」「10分休憩」）
 - done_today: 今日の作業終了（例: 「今日は終わり」「もう寝る」「作業終了」）
@@ -47,6 +50,7 @@ const INTENT_PARSE_PROMPT = `あなたはユーザーの発言から意図を解
 - remind_add: リマインド追加（例: 「毎朝9時に薬飲んだか確認して」）
 - remind_list: リマインド一覧（例: 「リマインド一覧」「登録済みのリマインド」）
 - remind_delete: リマインド削除（例: 「リマインド3番消して」）
+- reset: 現在のタスクを強制リセット（例: 「リセット」「タスクをリセット」）
 - chat: 上記に該当しない通常の会話
 
 【出力形式】JSONのみを出力してください
